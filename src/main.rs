@@ -1,10 +1,22 @@
+use alignment::*;
 use iced::*;
 use widget::*;
+
+mod md_style {
+    pub const SIZE_H1: u16 = 48;
+    pub const SIZE_H2: u16 = 38;
+    pub const SIZE_H3: u16 = 32;
+    pub const SIZE_TEXT: u16 = 18;
+    pub const SIZE_DIVIDER: u16 = 4;
+
+    pub const PADDING: u16 = 16;
+    pub const PADDING_TOP: [u16; 4] = [16, 0, 0, 0];
+}
 
 fn main() -> Result {
     let document = Markdown {
         elements: {
-            use crate::Element::*;
+            use crate::MdNode::*;
             vec![
                 H1("Iced GUI programming".to_string()),
                 Text("an introduction".to_string()),
@@ -15,6 +27,18 @@ fn main() -> Result {
                     "iced runs on a lot of platforms. It truly is a multiplatform GUI toolkit!"
                         .to_string(),
                 ),
+                H3("Easy".to_string()),
+                Text(
+                    "it's so easy to use! I threw this together with barely any knowledge!"
+                        .to_string(),
+                ),
+                H3("Momentum".to_string()),
+                Text(
+                    "With companies like system76 backing the development of iced, this is promising to become very mature soon"
+                        .to_string(),
+                ),
+                Divider,
+                Text("that's all folks!".to_string()),
             ]
         },
     };
@@ -27,11 +51,11 @@ fn main() -> Result {
 
 #[derive(Clone, Debug, Default)]
 struct Markdown {
-    elements: Vec<Element>,
+    elements: Vec<MdNode>,
 }
 
 #[derive(Clone, Debug)]
-enum Element {
+enum MdNode {
     H1(String),
     H2(String),
     H3(String),
@@ -41,7 +65,7 @@ enum Element {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Insert(Element, usize),
+    Insert(MdNode, usize),
     Delete(usize),
 }
 
@@ -61,7 +85,7 @@ impl Application for Markdown {
         self.elements
             .iter()
             .find_map(|elem| match elem {
-                Element::H1(s) => Some(s.clone()),
+                MdNode::H1(s) => Some(s.clone()),
                 _ => None,
             })
             .unwrap_or_else(|| String::from("Markdown App"))
@@ -80,38 +104,44 @@ impl Application for Markdown {
         Command::none()
     }
 
-    fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
+    fn view(&self) -> Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
         let mut v = Vec::with_capacity(self.elements.len());
         for elem in self.elements.iter() {
-            let elem = match elem {
-                Element::H1(value) => iced::Element::<Message>::from(text(value).size(32)),
-                Element::H2(value) => {
-                    let t = text(value)
-                        .size(24)
-                        .horizontal_alignment(alignment::Horizontal::Center);
+            let elem: Element<Message> = match elem {
+                MdNode::H1(value) => {
+                    let elem = text(value).size(md_style::SIZE_H1);
+                    widget::column![elem].padding(md_style::PADDING_TOP).into()
+                }
+                MdNode::H2(value) => {
+                    let elem = text(value).size(md_style::SIZE_H2);
 
-                    let t = widget::column![t, Rule::horizontal(1)];
-                    iced::Element::<Message>::from(t)
+                    widget::column![
+                        // headline
+                        elem,
+                        // ___
+                        Rule::horizontal(md_style::SIZE_DIVIDER)
+                    ]
+                    .padding(md_style::PADDING_TOP)
+                    .into()
                 }
-                Element::H3(value) => {
-                    let t = text(value).size(18);
-                    iced::Element::<Message>::from(t)
-                }
-                Element::Text(value) => {
-                    let t = text(value).size(12);
+                MdNode::H3(value) => {
+                    let elem = text(value)
+                        .size(md_style::SIZE_H3)
+                        .width(Length::Fill)
+                        .horizontal_alignment(Horizontal::Center);
 
-                    iced::Element::<Message>::from(t)
+                    widget::column![elem].padding(md_style::PADDING_TOP).into()
                 }
-                Element::Divider => {
-                    let ruler = Rule::horizontal(2);
-
-                    iced::Element::<Message>::from(ruler)
-                }
+                MdNode::Text(value) => text(value).size(md_style::SIZE_TEXT).into(),
+                MdNode::Divider => Rule::horizontal(md_style::SIZE_DIVIDER).into(),
             };
 
             v.push(elem);
         }
 
-        widget::Column::with_children(v).into()
+        // by setting the padding on the column, we can avoid having to pay the top padding while scrolling.
+        let column = widget::Column::with_children(v).padding(md_style::PADDING);
+
+        scrollable(column).into()
     }
 }
